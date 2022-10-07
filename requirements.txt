@@ -1,3 +1,4 @@
-selenium
-webdriver-manager
 black
+selenium
+sendgrid
+webdriver-manager

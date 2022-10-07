@@ -1,9 +1,11 @@
-# selenium 4
+import os
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support.select import Select
+import sendgrid
+from sendgrid.helpers.mail import *
 from webdriver_manager.firefox import GeckoDriverManager
 
 
@@ -36,7 +38,7 @@ def find_available_appointment(driver, location_idx):
             for e in dates
             if e.value_of_css_property("color") == "rgb(40, 185, 19)"
         ),
-        "None",
+        None,
     )
     return available_date
 
@@ -61,3 +63,19 @@ if __name__ == "__main__":
             init(driver)
 
     driver.quit()
+
+    if any(v is not None for v in results.values()):
+        subject = "APPOINTMENT FOUND!"
+        from_email = Email(os.environ.get("SCRAPER_FROM_ID"))
+        to_email = To(os.environ.get("SCRAPER_FROM_ID"))
+        body = "\n".join(
+            (f"{locations[loc]:<60}\t{res}") for loc, res in results.items()
+        )
+        content = Content("text/plain", body)
+
+        sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
+        mail = Mail(from_email, to_email, subject, content)
+        response = sg.client.mail.send.post(request_body=mail.get())
+        print(response.status_code)
+        print(response.body)
+        print(response.headers)
