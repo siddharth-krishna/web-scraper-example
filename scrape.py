@@ -2,11 +2,18 @@ import os
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.service import Service as FirefoxService
+
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service as ChromeService
+
+# from selenium.webdriver.firefox.options import Options
+# from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support.select import Select
 import sendgrid
 from sendgrid.helpers.mail import *
-from webdriver_manager.firefox import GeckoDriverManager
+
+# from webdriver_manager.firefox import GeckoDriverManager
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 def init(driver):
@@ -16,10 +23,10 @@ def init(driver):
 
 def ensure_service_selected(driver):
     service_selector = Select(driver.find_element(by=By.ID, value="serviceid"))
-    # if service_selector.first_selected_option.text != 'Surrender of Indian Passport':
-    # service_selector.select_by_index(1)
+    # if service_selector.first_selected_option.text != "Surrender of Indian Passport":
+    #     service_selector.select_by_index(1)
     if service_selector.first_selected_option.text != "VISA":
-        service_selector.select_by_index(4)
+        service_selector.select_by_visible_text("VISA")
     return
 
 
@@ -27,16 +34,15 @@ def find_available_appointment(driver, location_idx):
     ensure_service_selected(driver)
     loc_selector = Select(driver.find_element(by=By.ID, value="locationid"))
     loc_selector.select_by_index(location_idx)
-    dates = (
-        driver.find_element(By.ID, "calendar")
-        .find_element(By.CLASS_NAME, "dates")
-        .find_elements(By.TAG_NAME, "li")
-    )
+    cal = driver.find_element(By.ID, "calendar")
+    cal.screenshot(f"out_{location_idx}.png")
+    dates = cal.find_element(By.CLASS_NAME, "dates").find_elements(By.TAG_NAME, "li")
     available_date = next(
         (
             e.get_attribute("id")[3:]
             for e in dates
-            if e.value_of_css_property("color") == "rgb(40, 185, 19)"
+            # if e.value_of_css_property("color") == "rgb(40, 185, 19)"
+            if e.value_of_css_property("color") == "rgba(40, 185, 19, 1)"
         ),
         None,
     )
@@ -44,8 +50,11 @@ def find_available_appointment(driver, location_idx):
 
 
 if __name__ == "__main__":
-    gecko_driver = GeckoDriverManager().install()
-    driver = webdriver.Firefox(service=FirefoxService(gecko_driver))
+    options = Options()
+    options.add_argument("-headless")
+    driver = webdriver.Chrome(
+        service=ChromeService(ChromeDriverManager().install()), options=options
+    )
     init(driver)
     ensure_service_selected(driver)
     loc_selector = Select(driver.find_element(by=By.ID, value="locationid"))
