@@ -21,6 +21,17 @@ def init(driver):
     return
 
 
+def try_until(driver, fn, max_retries=10):
+    for _ in range(max_retries):
+        try:
+            result = fn()
+            return result
+        except NoSuchElementException:
+            print(driver.find_element(By.TAG_NAME, "body").text)
+            init(driver)
+    print("Max retries reached. Aborting.")
+
+
 def ensure_service_selected(driver):
     service_selector = Select(driver.find_element(by=By.ID, value="serviceid"))
     # if service_selector.first_selected_option.text != "Surrender of Indian Passport":
@@ -56,34 +67,28 @@ if __name__ == "__main__":
         service=ChromeService(ChromeDriverManager().install()), options=options
     )
     init(driver)
-    ensure_service_selected(driver)
+    try_until(driver, lambda: ensure_service_selected(driver))
     loc_selector = Select(driver.find_element(by=By.ID, value="locationid"))
     locations = [e.text for e in loc_selector.options]
 
-    i = 1  # Skip '--select--'
     results = {}
-    while i < len(locations):
-        try:
-            results[i] = find_available_appointment(driver, i)
-            print(locations[i], results[i], sep="\t")
-            i += 1
-        except NoSuchElementException:
-            print(driver.find_element(By.TAG_NAME, "body").text)
-            init(driver)
+    for i in range(1, len(locations)):  # Skip '--select--'
+        results[i] = try_until(driver, lambda: find_available_appointment(driver, i))
+        print(locations[i], results[i], sep="\t\t")
 
     driver.quit()
 
     if any(v is not None for v in results.values()):
         subject = "APPOINTMENT FOUND!"
         from_email = Email(os.environ.get("SCRAPER_FROM_ID"))
-        to_email = To(os.environ.get("SCRAPER_FROM_ID"))
+        to_emails = [To(e) for e in os.environ.get("SCRAPER_TO_ID").split(",")]
         body = "\n".join(
-            (f"{locations[loc]:<60}\t{res}") for loc, res in results.items()
+            (f"{locations[loc]:<70}\t{res}") for loc, res in results.items()
         )
         content = Content("text/plain", body)
 
         sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
-        mail = Mail(from_email, to_email, subject, content)
+        mail = Mail(from_email, to_emails, subject, content)
         response = sg.client.mail.send.post(request_body=mail.get())
         print(response.status_code)
         print(response.body)
