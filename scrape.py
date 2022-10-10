@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.select import Select
 import sendgrid
 from sendgrid.helpers.mail import *
+from sys import exit
 
 # from webdriver_manager.firefox import GeckoDriverManager
 from webdriver_manager.chrome import ChromeDriverManager
@@ -30,6 +31,8 @@ def try_until(driver, fn, max_retries=10):
             print(driver.find_element(By.TAG_NAME, "body").text)
             init(driver)
     print("Max retries reached. Aborting.")
+    driver.quit()
+    exit(1)
 
 
 def ensure_service_selected(driver):
@@ -60,6 +63,12 @@ def find_available_appointment(driver, location_idx):
     return available_date
 
 
+def get_all_locations(driver):
+    ensure_service_selected(driver)
+    loc_selector = Select(driver.find_element(by=By.ID, value="locationid"))
+    return [e.text for e in loc_selector.options]
+
+
 if __name__ == "__main__":
     options = Options()
     options.add_argument("-headless")
@@ -67,14 +76,12 @@ if __name__ == "__main__":
         service=ChromeService(ChromeDriverManager().install()), options=options
     )
     init(driver)
-    try_until(driver, lambda: ensure_service_selected(driver))
-    loc_selector = Select(driver.find_element(by=By.ID, value="locationid"))
-    locations = [e.text for e in loc_selector.options]
+    locations = try_until(driver, lambda: get_all_locations(driver))
 
     results = {}
     for i in range(1, len(locations)):  # Skip '--select--'
         results[i] = try_until(driver, lambda: find_available_appointment(driver, i))
-        print(locations[i], results[i], sep="\t\t")
+        print(f"{locations[i]:<50}\t{results[i]}")
 
     driver.quit()
 
