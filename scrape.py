@@ -69,6 +69,36 @@ def get_all_locations(driver):
     return [e.text for e in loc_selector.options]
 
 
+def send_new_loc_email(locations):
+    subject = "Locations changed"
+    from_email = Email(os.environ.get("SCRAPER_FROM_ID"))
+    to_emails = [To(e) for e in os.environ.get("SCRAPER_TO_ID").split(",")]
+    body = "\n".join(str(loc) for loc in locations)
+    content = Content("text/plain", body)
+
+    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
+    mail = Mail(from_email, to_emails, subject, content)
+    response = sg.client.mail.send.post(request_body=mail.get())
+    print(response.status_code)
+    print(response.body)
+    print(response.headers)
+
+
+def send_results_email(results):
+    subject = "APPOINTMENT FOUND!"
+    from_email = Email(os.environ.get("SCRAPER_FROM_ID"))
+    to_emails = [To(e) for e in os.environ.get("SCRAPER_TO_ID").split(",")]
+    body = "\n".join((f"{locations[loc]:<70}\t{res}") for loc, res in results.items())
+    content = Content("text/plain", body)
+
+    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
+    mail = Mail(from_email, to_emails, subject, content)
+    response = sg.client.mail.send.post(request_body=mail.get())
+    print(response.status_code)
+    print(response.body)
+    print(response.headers)
+
+
 if __name__ == "__main__":
     options = Options()
     options.add_argument("-headless")
@@ -77,6 +107,8 @@ if __name__ == "__main__":
     )
     init(driver)
     locations = try_until(driver, lambda: get_all_locations(driver))
+    if len(locations) != 10:
+        send_new_loc_email(locations)
 
     results = {}
     for i in range(1, len(locations)):  # Skip '--select--'
@@ -86,17 +118,4 @@ if __name__ == "__main__":
     driver.quit()
 
     if any(v is not None for v in results.values()):
-        subject = "APPOINTMENT FOUND!"
-        from_email = Email(os.environ.get("SCRAPER_FROM_ID"))
-        to_emails = [To(e) for e in os.environ.get("SCRAPER_TO_ID").split(",")]
-        body = "\n".join(
-            (f"{locations[loc]:<70}\t{res}") for loc, res in results.items()
-        )
-        content = Content("text/plain", body)
-
-        sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
-        mail = Mail(from_email, to_emails, subject, content)
-        response = sg.client.mail.send.post(request_body=mail.get())
-        print(response.status_code)
-        print(response.body)
-        print(response.headers)
+        send_results_email(results)
